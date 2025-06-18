@@ -29,7 +29,7 @@ if 'user_input' not in st.session_state:
 try:
     # Initialize the client. It will use the HF_TOKEN from secrets.
     client = InferenceClient()
-    MODEL_ID = "mistralai/Mistral-7B-Instruct-v0.2"
+    MODEL_ID = "phi-3"
 except Exception as e:
     st.error(f"Failed to initialize the Hugging Face Inference Client. Error: {e}")
     st.stop()
