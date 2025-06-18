@@ -15,7 +15,7 @@ if os.getenv("LANGCHAIN_API_KEY"):
 
 # --- Streamlit Page Configuration ---
 st.set_page_config(page_title="Langchain with Hosted LLM", layout="centered")
-st.title('AI Chatbot - 🤖 Hosted Model')
+st.title('AI Chatbot - 🤖')
 
 # --- Session State Initialization ---
 # Ensures variables persist across user interactions
@@ -41,11 +41,10 @@ prompt = ChatPromptTemplate.from_messages(
 
 try:
     # --- THIS IS THE FIX ---
-    # We are switching to a more universally compatible model from Google.
-    # This model is excellent for question-answering and chat.
+    # We are switching to a highly compatible and powerful instruction-tuned model.
     llm = HuggingFaceEndpoint(
-        repo_id="google/flan-t5-large",
-        temperature=0.8,
+        repo_id="mistralai/Mistral-7B-Instruct-v0.2",
+        temperature=0.7,
         max_new_tokens=1024
     )
     # --------------------
@@ -105,5 +104,4 @@ with chat_container:
                 seed="User123"
             )
     else:
-        st.image("https://i.imgur.com/b21s52r.png", width=200)
         st.info("Hello! I'm your helpful AI assistant. How can I help you today?")
