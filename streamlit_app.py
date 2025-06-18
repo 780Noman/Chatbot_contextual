@@ -1,40 +1,37 @@
 import streamlit as st
 from streamlit_chat import message
-from langchain_community.llms import Ollama
+from langchain_huggingface import HuggingFaceEndpoint
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from dotenv import load_dotenv
 import os
 
-# Load environment variables
+# Load environment variables from a .env file if it exists
 load_dotenv()
 
-# Set your LangChain API key
-os.environ["LANGCHAIN_API_KEY"] = os.getenv("LANGCHAIN_API_KEY")
+# Set your LangChain API key if you have one (optional)
+if os.getenv("LANGCHAIN_API_KEY"):
+    os.environ["LANGCHAIN_API_KEY"] = os.getenv("LANGCHAIN_API_KEY")
 
-# Streamlit page configuration
-st.set_page_config(page_title="Langchain with Ollama")
-st.title('Langchain with Ollama - phi3 Model')
+# --- Streamlit Page Configuration ---
+st.set_page_config(page_title="Langchain with Hosted LLM", layout="centered")
+st.title('AI Chatbot - 🤖 Hosted Model')
 
-# Initialize session state variables
+# --- Session State Initialization ---
+# Ensures variables persist across user interactions
 if 'entered_prompt' not in st.session_state:
-    st.session_state['entered_prompt'] = ""  # Store the latest user input
+    st.session_state['entered_prompt'] = ""
 
 if 'generated' not in st.session_state:
-    st.session_state['generated'] = []  # Store AI generated responses
+    st.session_state['generated'] = []
 
 if 'past' not in st.session_state:
-    st.session_state['past'] = []  # Store past user inputs
+    st.session_state['past'] = []
 
 if 'conversation_history' not in st.session_state:
-    st.session_state['conversation_history'] = ""  # Store the entire conversation history
+    st.session_state['conversation_history'] = ""
 
-# Define function to submit user input
-def submit():
-    st.session_state.entered_prompt = st.session_state.prompt_input
-    st.session_state.prompt_input = ""
-
-# Prompt template
+# --- LangChain and Hugging Face Setup ---
 prompt = ChatPromptTemplate.from_messages(
     [
         ("system", "You are a helpful assistant. Please respond to the user queries."),
@@ -42,49 +39,71 @@ prompt = ChatPromptTemplate.from_messages(
     ]
 )
 
-# Initialize the Ollama model (phi3)
-# llm = Ollama(model="phi3")
-from langchain_huggingface import HuggingFaceEndpoint
+try:
+    # --- THIS IS THE FIX ---
+    # We are switching to a more universally compatible model from Google.
+    # This model is excellent for question-answering and chat.
+    llm = HuggingFaceEndpoint(
+        repo_id="google/flan-t5-large",
+        temperature=0.8,
+        max_new_tokens=1024
+    )
+    # --------------------
+    
+    output_parser = StrOutputParser()
+    chain = prompt | llm | output_parser
+except Exception as e:
+    st.error(f"Failed to initialize the language model. Error: {e}")
+    st.stop()
 
-# This connects to a free, hosted model on Hugging Face
-# It will automatically use your HF_TOKEN from the secrets
-llm = HuggingFaceEndpoint(
-    repo_id="mistralai/Mistral-7B-Instruct-v0.2",
-    temperature=0.7,
-    max_new_tokens=1024
-)
-output_parser = StrOutputParser()
-
-# Chain the prompt, model, and output parser
-chain = prompt | llm | output_parser
-
+# --- Core Application Logic ---
 def generate_response(user_query):
     """
-    Generate a response using the Ollama model.
-    Include the entire conversation history in the prompt.
+    Generates a response using the hosted Hugging Face model.
     """
-    # Include conversation history in the input to maintain context
-    complete_prompt = st.session_state.conversation_history + f"\nUser: {user_query}\nAI:"
+    complete_prompt = st.session_state.conversation_history + f"\nUser: {user_query}"
     response = chain.invoke({"question": complete_prompt}).strip()
-    
-    # Update conversation history with the new user query and AI response
-    st.session_state.conversation_history += f"\nUser: {user_query}\nAI: {response}\n"
-    
+    st.session_state.conversation_history += f"\nUser: {user_query}\nAI: {response}"
     return response
 
-# Create a text input for the user
+# --- Streamlit UI Components ---
+def submit():
+    """
+    Callback function to handle user input submission.
+    """
+    st.session_state.entered_prompt = st.session_state.prompt_input
+    st.session_state.prompt_input = ""
+
+# User input text box at the bottom
 st.text_input('YOU: ', key='prompt_input', on_change=submit)
 
-if st.session_state.entered_prompt != "":
+# Process user input and generate response
+if st.session_state.entered_prompt:
     user_query = st.session_state.entered_prompt
     st.session_state.past.append(user_query)
+    with st.spinner("Thinking..."):
+        output = generate_response(user_query)
+        st.session_state.generated.append(output)
 
-    # Generate response with context
-    output = generate_response(user_query)
-    st.session_state.generated.append(output)
+# --- Display Chat History with Avatars ---
+chat_container = st.container()
 
-# Display the chat history
-if st.session_state['generated']:
-    for i in range(len(st.session_state['generated'])-1, -1, -1):
-        message(st.session_state["generated"][i], key=str(i))
-        message(st.session_state['past'][i], is_user=True, key=str(i) + '_user')
+with chat_container:
+    if st.session_state['generated']:
+        for i in range(len(st.session_state['generated']) - 1, -1, -1):
+            message(
+                st.session_state["generated"][i],
+                key=str(i),
+                avatar_style="micah",
+                seed="AI-Bot"
+            )
+            message(
+                st.session_state['past'][i],
+                is_user=True,
+                key=str(i) + '_user',
+                avatar_style="identicon",
+                seed="User123"
+            )
+    else:
+        st.image("https://i.imgur.com/b21s52r.png", width=200)
+        st.info("Hello! I'm your helpful AI assistant. How can I help you today?")
