@@ -15,7 +15,7 @@ if os.getenv("LANGCHAIN_API_KEY"):
 
 # --- Streamlit Page Configuration ---
 st.set_page_config(page_title="Langchain with Hosted LLM", layout="centered")
-st.title('AI Chatbot - 🤖')
+st.title('AI Chatbot - 🤖 ')
 
 # --- Session State Initialization ---
 # Ensures variables persist across user interactions
@@ -40,14 +40,13 @@ prompt = ChatPromptTemplate.from_messages(
 )
 
 try:
-    # --- THIS IS THE FIX ---
-    # We are switching to a highly compatible and powerful instruction-tuned model.
+    # This connects to a free, hosted model on Hugging Face
+    # We are using a highly compatible and powerful instruction-tuned model.
     llm = HuggingFaceEndpoint(
         repo_id="mistralai/Mistral-7B-Instruct-v0.2",
         temperature=0.7,
         max_new_tokens=1024
     )
-    # --------------------
     
     output_parser = StrOutputParser()
     chain = prompt | llm | output_parser
@@ -90,18 +89,21 @@ chat_container = st.container()
 with chat_container:
     if st.session_state['generated']:
         for i in range(len(st.session_state['generated']) - 1, -1, -1):
+            # Display AI response with a robot avatar
             message(
                 st.session_state["generated"][i],
                 key=str(i),
-                avatar_style="micah",
+                avatar_style="bottts-neutral",
                 seed="AI-Bot"
             )
+            # Display user's prompt with a human avatar
             message(
                 st.session_state['past'][i],
                 is_user=True,
                 key=str(i) + '_user',
-                avatar_style="identicon",
+                avatar_style="adventurer-neutral",
                 seed="User123"
             )
     else:
+        # Display a welcome message and image when the chat is empty
         st.info("Hello! I'm your helpful AI assistant. How can I help you today?")
