@@ -43,7 +43,7 @@ try:
     # This connects to a free, hosted model on Hugging Face
     # We are using a highly compatible and powerful instruction-tuned model.
     llm = HuggingFaceEndpoint(
-        repo_id="mistralai/Mistral-7B-Instruct-v0.2",
+        repo_id="google/flan-t5-large",
         temperature=0.7,
         max_new_tokens=1024
     )
