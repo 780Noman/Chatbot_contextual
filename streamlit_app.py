@@ -1,6 +1,11 @@
 import streamlit as st
 from streamlit_chat import message
-from transformers import pipeline, Conversation
+from transformers import pipeline
+# --- THIS IS THE FIX ---
+# The Conversation object was moved to a more specific path in newer versions of the transformers library.
+# We are updating the import statement to its new, correct location.
+from transformers.pipelines.conversational import Conversation
+# --------------------
 from dotenv import load_dotenv
 import os
 
@@ -12,7 +17,7 @@ load_dotenv()
 
 # --- Streamlit Page Configuration ---
 st.set_page_config(page_title="AI Chatbot", layout="centered")
-st.title('AI Chatbot - 🤖 ')
+st.title('AI Chatbot - 🤖')
 
 # --- Session State Initialization ---
 if 'generated' not in st.session_state:
@@ -24,18 +29,16 @@ if 'past' not in st.session_state:
 if 'user_input' not in st.session_state:
     st.session_state['user_input'] = ""
 
-# NEW: Initialize the conversation object in session state
+# Initialize the conversation object in session state
 if 'conversation' not in st.session_state:
     st.session_state.conversation = None
 
 # --- Hugging Face Pipeline Setup ---
 try:
-    # THIS IS THE FIX: We are now using a 'conversational' pipeline.
-    # This method is more stable and better suited for chatbots.
-    # The model "microsoft/DialoGPT-medium" is specifically designed for dialogue.
-    # The pipeline will use your HF_TOKEN from secrets automatically to download the model.
+    # We use st.cache_resource to load the model only once
     @st.cache_resource
     def load_chatbot_pipeline():
+        """Loads the conversational pipeline from Hugging Face."""
         return pipeline("conversational", model="microsoft/DialoGPT-medium")
     
     chatbot = load_chatbot_pipeline()
