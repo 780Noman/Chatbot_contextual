@@ -1,25 +1,21 @@
 import streamlit as st
 from streamlit_chat import message
-from transformers import pipeline
-# --- THIS IS THE FIX ---
-# The Conversation object was moved to a more specific path in newer versions of the transformers library.
-# We are updating the import statement to its new, correct location.
-from transformers.pipelines.conversational import Conversation
-# --------------------
+from huggingface_hub import InferenceClient
 from dotenv import load_dotenv
 import os
 
 # Load environment variables from a .env file if it exists
 load_dotenv()
 
-# This will automatically use the HUGGINGFACEHUB_API_TOKEN from your Space secrets.
-# We no longer need a separate LangChain API key.
+# This will automatically use the HUGGINGFACEHUB_API_TOKEN from your Space secrets
+# We do not need a separate LangChain API key for this setup.
 
 # --- Streamlit Page Configuration ---
 st.set_page_config(page_title="AI Chatbot", layout="centered")
-st.title('AI Chatbot - 🤖')
+st.title('AI Chatbot - 🤖 ')
 
 # --- Session State Initialization ---
+# Ensures variables persist across user interactions
 if 'generated' not in st.session_state:
     st.session_state['generated'] = []
 
@@ -29,72 +25,86 @@ if 'past' not in st.session_state:
 if 'user_input' not in st.session_state:
     st.session_state['user_input'] = ""
 
-# Initialize the conversation object in session state
-if 'conversation' not in st.session_state:
-    st.session_state.conversation = None
-
-# --- Hugging Face Pipeline Setup ---
+# --- Hugging Face Inference Client Setup ---
 try:
-    # We use st.cache_resource to load the model only once
-    @st.cache_resource
-    def load_chatbot_pipeline():
-        """Loads the conversational pipeline from Hugging Face."""
-        return pipeline("conversational", model="microsoft/DialoGPT-medium")
-    
-    chatbot = load_chatbot_pipeline()
-    
-    # We only create a new conversation object if one doesn't already exist
-    if st.session_state.conversation is None:
-        st.session_state.conversation = Conversation()
-    
-    print("Conversational pipeline loaded successfully!")
+    # Initialize the client. It will use the HF_TOKEN from secrets.
+    client = InferenceClient()
+    MODEL_ID = "bitext/Bitext-customer-support-llm-chatbot-training-dataset"
 except Exception as e:
-    st.error(f"Failed to initialize the Hugging Face pipeline. Error: {e}")
+    st.error(f"Failed to initialize the Hugging Face Inference Client. Error: {e}")
     st.stop()
 
 # --- Core Application Logic ---
-def generate_response(user_query):
+def generate_response(user_query, chat_history):
     """
-    Generates a response using the conversational pipeline.
+    Generates a response using the hosted Hugging Face model directly.
     """
-    # Add the user's new message to our conversation object
-    st.session_state.conversation.add_user_input(user_query)
+    # Build the prompt with conversation history using the model's required format
+    conversation = ""
+    for user_msg, ai_msg in zip(chat_history['past'], chat_history['generated']):
+        conversation += f"[INST] {user_msg} [/INST]{ai_msg} "
     
-    # Get the model's response by passing the entire conversation
-    # The `pad_token_id` is set to prevent a common warning with this model
-    response_conversation = chatbot(st.session_state.conversation, pad_token_id=50256)
-    
-    # The model's reply is the last generated response in the conversation
-    ai_response = response_conversation.generated_responses[-1]
-    
-    return ai_response
+    # Add the latest user query
+    prompt = f"{conversation}[INST] {user_query} [/INST]"
+
+    try:
+        # Call the text_generation endpoint directly
+        response_stream = client.text_generation(
+            model=MODEL_ID,
+            prompt=prompt,
+            max_new_tokens=1024,
+            temperature=0.7,
+            stream=True # Use streaming for better user experience
+        )
+        
+        # Stream the response back to the UI
+        full_response = ""
+        for token in response_stream:
+            full_response += token
+        return full_response.strip()
+
+    except Exception as e:
+        st.error(f"Sorry, I encountered an error: {e}")
+        return "I am unable to respond at the moment. Please try again later."
+
 
 # --- Streamlit UI Components ---
+# This function is called when the user presses Enter in the text input
 def submit():
     st.session_state.user_input = st.session_state.prompt_input
     st.session_state.prompt_input = ""
 
-# User input text box
+# User input text box at the bottom
 st.text_input('YOU: ', key='prompt_input', on_change=submit)
 
 # Process user input and generate response
 if st.session_state.user_input:
+    # Get the user's query
     user_query = st.session_state.user_input
-    st.session_state.past.append(user_query)
     
+    # Store the user's query and generate the AI's response
+    st.session_state.past.append(user_query)
     with st.spinner("Thinking..."):
-        output = generate_response(user_query)
+        # Pass the current chat history for context
+        chat_history = {
+            'past': st.session_state.past,
+            'generated': st.session_state.generated
+        }
+        output = generate_response(user_query, chat_history)
         st.session_state.generated.append(output)
     
-    st.session_state.user_input = "" # Clear input to prevent re-running
+    # Clear the input so it doesn't re-run
+    st.session_state.user_input = ""
 
-# --- Display Chat History ---
+# --- Display Chat History with Avatars ---
 chat_container = st.container()
 
 with chat_container:
     if st.session_state['generated']:
+        # Display the chat history in chronological order (oldest to newest)
         for i in range(len(st.session_state['generated'])):
             message(st.session_state['past'][i], is_user=True, key=str(i) + '_user', avatar_style="identicon", seed="User123")
             message(st.session_state["generated"][i], key=str(i), avatar_style="micah", seed="AI-Bot")
     else:
+        # Display a welcome message and image when the chat is empty
         st.info("Hello! I'm your helpful AI assistant. How can I help you today?")
