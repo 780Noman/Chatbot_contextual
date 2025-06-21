@@ -13,7 +13,11 @@ IS_ON_HUGGINGFACE = os.environ.get("SYSTEM") == "spaces"
 
 # Import the correct libraries based on the environment
 if IS_ON_HUGGINGFACE:
-    from transformers import pipeline, Conversation
+    from transformers import pipeline
+    # --- THIS IS THE FIX ---
+    # The Conversation object was moved to a more specific path.
+    from transformers.pipelines.conversational import Conversation
+    # --------------------
     print("Running on Hugging Face Space. Using Transformers pipeline.")
 else:
     from langchain_community.llms import Ollama
