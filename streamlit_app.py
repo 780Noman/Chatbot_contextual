@@ -15,7 +15,7 @@ if os.getenv("LANGCHAIN_API_KEY"):
 
 # Streamlit page configuration
 st.set_page_config(page_title="AI Chatbot")
-st.title('AI Chatbot - 🤖 Hosted Model')
+st.title('AI Chatbot - 🤖')
 
 # Initialize session state variables
 if 'entered_prompt' not in st.session_state:
