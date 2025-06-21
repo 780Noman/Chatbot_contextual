@@ -28,21 +28,19 @@ if 'past' not in st.session_state:
     st.session_state['past'] = []
 
 
-# --- THIS IS THE FIX ---
-# We are creating a more structured prompt template.
-# It clearly separates the chat history from the new user question.
+# A more structured prompt template to guide the model better.
 template = """
 You are a helpful and friendly AI assistant.
 Here is the chat history so far:
 {history}
 
-Now, please respond to the user's latest question:
+Now, please respond to the user's latest question.
+
 User: {user_input}
-AI:
-"""
+AI:"""
 
 prompt = ChatPromptTemplate.from_template(template)
-# --------------------
+
 
 try:
     # Connect to a reliable hosted model
@@ -66,12 +64,24 @@ def generate_response(user_query):
     """
     # Build the history string from session state
     history = ""
+    # We loop through the number of generated responses, which corresponds to completed turns.
     for i in range(len(st.session_state['generated'])):
         history += f"User: {st.session_state['past'][i]}\n"
         history += f"AI: {st.session_state['generated'][i]}\n"
 
     # Invoke the chain with the structured history and new input
-    response = chain.invoke({"history": history, "user_input": user_query}).strip()
+    raw_response = chain.invoke({"history": history, "user_input": user_query}).strip()
+    
+    # --- THIS IS THE FIX ---
+    # Some models continue generating text past their own turn.
+    # We will find the next "User:" marker and split the response there,
+    # ensuring we only get the AI's intended reply.
+    # We search for "\nUser:" to avoid splitting on the word "user" in the middle of a sentence.
+    if "\nUser:" in raw_response:
+        response = raw_response.split("\nUser:")[0].strip()
+    else:
+        response = raw_response
+    # --------------------
     
     return response
 
