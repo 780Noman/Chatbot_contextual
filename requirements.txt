@@ -1,7 +1,10 @@
 streamlit
 streamlit-chat
+python-dotenv
+# For Local Ollama
 langchain-community
 langchain-core
-python-dotenv
-langchain-huggingface
+# For Hugging Face Deployment
 transformers
+# The "Engine" for the transformers library
+torch
