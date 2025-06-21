@@ -64,7 +64,6 @@ def generate_response(user_query):
     """
     # Build the history string from session state
     history = ""
-    # We loop through the number of generated responses, which corresponds to completed turns.
     for i in range(len(st.session_state['generated'])):
         history += f"User: {st.session_state['past'][i]}\n"
         history += f"AI: {st.session_state['generated'][i]}\n"
@@ -72,16 +71,12 @@ def generate_response(user_query):
     # Invoke the chain with the structured history and new input
     raw_response = chain.invoke({"history": history, "user_input": user_query}).strip()
     
-    # --- THIS IS THE FIX ---
     # Some models continue generating text past their own turn.
-    # We will find the next "User:" marker and split the response there,
-    # ensuring we only get the AI's intended reply.
-    # We search for "\nUser:" to avoid splitting on the word "user" in the middle of a sentence.
+    # This logic ensures we only get the AI's intended reply.
     if "\nUser:" in raw_response:
         response = raw_response.split("\nUser:")[0].strip()
     else:
         response = raw_response
-    # --------------------
     
     return response
 
@@ -106,7 +101,10 @@ if st.session_state.entered_prompt != "":
 if st.session_state['generated']:
     chat_container = st.container()
     with chat_container:
-        # We display in reverse order so newest messages are at the top
-        for i in range(len(st.session_state['generated'])-1, -1, -1):
-            message(st.session_state["generated"][i], key=str(i), avatar_style="micah", seed="AI-Bot")
+        # --- THIS IS THE FIX ---
+        # We now loop from the beginning to the end (chronological order).
+        # We also display the user's message first, then the AI's response.
+        for i in range(len(st.session_state['generated'])):
             message(st.session_state['past'][i], is_user=True, key=str(i) + '_user', avatar_style="identicon", seed="User123")
+            message(st.session_state["generated"][i], key=str(i), avatar_style="micah", seed="AI-Bot")
+        # --------------------
