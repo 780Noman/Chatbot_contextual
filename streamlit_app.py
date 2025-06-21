@@ -27,35 +27,33 @@ if 'generated' not in st.session_state:
 if 'past' not in st.session_state:
     st.session_state['past'] = []
 
-if 'conversation_history' not in st.session_state:
-    st.session_state['conversation_history'] = ""
 
-# Define function to submit user input
-def submit():
-    st.session_state.entered_prompt = st.session_state.prompt_input
-    st.session_state.prompt_input = ""
+# --- THIS IS THE FIX ---
+# We are creating a more structured prompt template.
+# It clearly separates the chat history from the new user question.
+template = """
+You are a helpful and friendly AI assistant.
+Here is the chat history so far:
+{history}
 
-# Prompt template
-prompt = ChatPromptTemplate.from_messages(
-    [
-        ("system", "You are a helpful assistant. Please respond to the user queries in a friendly manner."),
-        ("user", "Question: {question}")
-    ]
-)
+Now, please respond to the user's latest question:
+User: {user_input}
+AI:
+"""
+
+prompt = ChatPromptTemplate.from_template(template)
+# --------------------
 
 try:
-    # --- THIS IS THE FIX ---
-    # We are using a different, highly compatible model that is very reliable on Hugging Face Spaces.
+    # Connect to a reliable hosted model
     llm = HuggingFaceEndpoint(
         repo_id="HuggingFaceH4/zephyr-7b-beta",
         temperature=0.7,
         max_new_tokens=512,
-        top_k=50,
-        top_p=0.95,
     )
-    # --------------------
     
     output_parser = StrOutputParser()
+    # Chain the components together
     chain = prompt | llm | output_parser
 except Exception as e:
     st.error(f"Failed to load the AI model. Error: {e}")
@@ -64,16 +62,23 @@ except Exception as e:
 
 def generate_response(user_query):
     """
-    Generate a response using the hosted Hugging Face model.
+    Generate a response using the hosted Hugging Face model, including conversation history.
     """
-    # Include conversation history in the input to maintain context
-    complete_prompt = st.session_state.conversation_history + f"\nUser: {user_query}"
-    response = chain.invoke({"question": complete_prompt}).strip()
-    
-    # Update conversation history with the new user query and AI response
-    st.session_state.conversation_history += f"\nUser: {user_query}\nAI: {response}"
+    # Build the history string from session state
+    history = ""
+    for i in range(len(st.session_state['generated'])):
+        history += f"User: {st.session_state['past'][i]}\n"
+        history += f"AI: {st.session_state['generated'][i]}\n"
+
+    # Invoke the chain with the structured history and new input
+    response = chain.invoke({"history": history, "user_input": user_query}).strip()
     
     return response
+
+# Define function to submit user input
+def submit():
+    st.session_state.entered_prompt = st.session_state.prompt_input
+    st.session_state.prompt_input = ""
 
 # Create a text input for the user
 st.text_input('YOU: ', key='prompt_input', on_change=submit)
@@ -91,7 +96,7 @@ if st.session_state.entered_prompt != "":
 if st.session_state['generated']:
     chat_container = st.container()
     with chat_container:
+        # We display in reverse order so newest messages are at the top
         for i in range(len(st.session_state['generated'])-1, -1, -1):
             message(st.session_state["generated"][i], key=str(i), avatar_style="micah", seed="AI-Bot")
             message(st.session_state['past'][i], is_user=True, key=str(i) + '_user', avatar_style="identicon", seed="User123")
-
