@@ -48,7 +48,7 @@ prompt = ChatPromptTemplate.from_messages(
 # Initialize the HuggingFaceEndpoint
 try:
     llm = HuggingFaceEndpoint(
-        repo_id="microsoft/Phi-3-mini-4k-instruct",
+        repo_id="mistralai/Mistral-7B-Instruct-v0.2",
         huggingfacehub_api_token=hf_token,
         temperature=0.7,
         max_new_tokens=512
