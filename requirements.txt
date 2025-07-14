@@ -1,5 +1,6 @@
 streamlit
-streamlit-chat
+langchain>=0.2.0
+langchain-huggingface>=0.0.3
 python-dotenv
-langchain-core
-langchain-huggingface
+huggingface-hub
+streamlit-chat
