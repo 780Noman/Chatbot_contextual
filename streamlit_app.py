@@ -1,110 +1,94 @@
 import streamlit as st
-from streamlit_chat import message
 from langchain_huggingface import HuggingFaceEndpoint
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from dotenv import load_dotenv
 import os
 
-# Load environment variables
+# --- 1. SETUP ---
+
+# Load environment variables. This is not needed on Hugging Face Spaces,
+# as you'll set secrets directly in the Space's settings.
 load_dotenv()
 
-# Set your LangChain API key if you have one
-if os.getenv("LANGCHAIN_API_KEY"):
-    os.environ["LANGCHAIN_API_KEY"] = os.getenv("LANGCHAIN_API_KEY")
-
-# Streamlit page configuration
-st.set_page_config(page_title="AI Chatbot")
+# Set the title for your app
+st.set_page_config(page_title="AI Chatbot", page_icon="🤖")
 st.title('AI Assistant - 🤖')
 
-# Initialize session state variables
-if 'entered_prompt' not in st.session_state:
-    st.session_state['entered_prompt'] = ""
+# Check for the Hugging Face API token in secrets
+hf_token = os.getenv("HUGGINGFACEHUB_API_TOKEN")
 
-if 'generated' not in st.session_state:
-    st.session_state['generated'] = []
+if not hf_token:
+    st.error("Hugging Face API token not found. Please set it in your secrets.")
+    st.stop()
 
-if 'past' not in st.session_state:
-    st.session_state['past'] = []
+# --- 2. MODEL AND CHAIN INITIALIZATION ---
 
-
-# A more structured prompt template to guide the model better.
+# A structured prompt template to guide the model
 template = """
 You are a helpful and friendly AI assistant.
-Here is the chat history so far:
-{history}
 
-Now, please respond to the user's latest question.
+Current conversation:
+{history}
 
 User: {user_input}
 AI:"""
-
-prompt = ChatPromptTemplate.from_template(template)
-
+prompt_template = ChatPromptTemplate.from_template(template)
 
 try:
-    # Connect to a reliable hosted model
+    # Connect to a reliable hosted model from Hugging Face
     llm = HuggingFaceEndpoint(
         repo_id="mistralai/Mistral-7B-Instruct-v0.1",
+        huggingfacehub_api_token=hf_token, # Explicitly pass the token
         temperature=0.7,
         max_new_tokens=512,
     )
-    
+
+    # Define the output parser and chain the components together
     output_parser = StrOutputParser()
-    # Chain the components together
-    chain = prompt | llm | output_parser
+    chain = prompt_template | llm | output_parser
+
 except Exception as e:
     st.error(f"Failed to load the AI model. Error: {e}")
     st.stop()
 
 
-def generate_response(user_query):
-    """
-    Generate a response using the hosted Hugging Face model, including conversation history.
-    """
-    # Build the history string from session state
-    history = ""
-    for i in range(len(st.session_state['generated'])):
-        history += f"User: {st.session_state['past'][i]}\n"
-        history += f"AI: {st.session_state['generated'][i]}\n"
+# --- 3. CHAT HISTORY MANAGEMENT ---
 
-    # Invoke the chain with the structured history and new input
-    raw_response = chain.invoke({"history": history, "user_input": user_query}).strip()
-    
-    # Some models continue generating text past their own turn.
-    # This logic ensures we only get the AI's intended reply.
-    if "\nUser:" in raw_response:
-        response = raw_response.split("\nUser:")[0].strip()
-    else:
-        response = raw_response
-    
-    return response
+# Initialize chat history in session state if it doesn't exist
+if "messages" not in st.session_state:
+    st.session_state.messages = []
 
-# Define function to submit user input
-def submit():
-    st.session_state.entered_prompt = st.session_state.prompt_input
-    st.session_state.prompt_input = ""
+# Display prior messages on rerun
+for message in st.session_state.messages:
+    with st.chat_message(message["role"]):
+        st.markdown(message["content"])
 
-# Create a text input for the user
-st.text_input('YOU: ', key='prompt_input', on_change=submit)
 
-if st.session_state.entered_prompt != "":
-    user_query = st.session_state.entered_prompt
-    st.session_state.past.append(user_query)
+# --- 4. USER INPUT AND RESPONSE GENERATION ---
 
-    # Generate response with context
-    with st.spinner("Thinking..."):
-        output = generate_response(user_query)
-        st.session_state.generated.append(output)
+# Accept user input using the modern chat input widget
+if user_prompt := st.chat_input("What's on your mind?"):
+    # Add user message to session state and display it
+    st.session_state.messages.append({"role": "user", "content": user_prompt})
+    with st.chat_message("user"):
+        st.markdown(user_prompt)
 
-# Display the chat history
-if st.session_state['generated']:
-    chat_container = st.container()
-    with chat_container:
-        # --- THIS IS THE FIX ---
-        # We now loop from the beginning to the end (chronological order).
-        # We also display the user's message first, then the AI's response.
-        for i in range(len(st.session_state['generated'])):
-            message(st.session_state['past'][i], is_user=True, key=str(i) + '_user', avatar_style="identicon", seed="User123")
-            message(st.session_state["generated"][i], key=str(i), avatar_style="micah", seed="AI-Bot")
-        # --------------------
+    # Generate and display AI response
+    with st.chat_message("assistant"):
+        with st.spinner("Thinking..."):
+            try:
+                # Build the history string from session state
+                history = "\n".join(
+                    [f"{msg['role']}: {msg['content']}" for msg in st.session_state.messages]
+                )
+
+                # Invoke the chain to get a response
+                response = chain.invoke({"history": history, "user_input": user_prompt})
+                st.markdown(response)
+
+            except Exception as e:
+                st.error(f"An error occurred while generating the response: {e}")
+
+    # Add AI response to session state
+    st.session_state.messages.append({"role": "assistant", "content": response})
