@@ -2,24 +2,21 @@ import streamlit as st
 from langchain_huggingface import HuggingFaceEndpoint
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
-from dotenv import load_dotenv
 import os
 
 # --- 1. SETUP ---
 
-# Load environment variables. This is not needed on Hugging Face Spaces,
-# as you'll set secrets directly in the Space's settings.
-load_dotenv()
-
 # Set the title for your app
 st.set_page_config(page_title="AI Chatbot", page_icon="🤖")
-st.title('AI Assistant - 🤖')
+st.title('AI Assistant')
 
-# Check for the Hugging Face API token in secrets
+# Check for the Hugging Face API token in Streamlit's secrets management
+# This is the standard way for apps deployed on Hugging Face Spaces
 hf_token = os.getenv("HUGGINGFACEHUB_API_TOKEN")
 
 if not hf_token:
-    st.error("Hugging Face API token not found. Please set it in your secrets.")
+    st.error("Hugging Face API token is not set. Please add it to your Space's secrets.")
+    st.info("Go to your Space's 'Settings' > 'Secrets' and add a secret named 'HUGGINGFACEHUB_API_TOKEN'.")
     st.stop()
 
 # --- 2. MODEL AND CHAIN INITIALIZATION ---
@@ -68,7 +65,7 @@ for message in st.session_state.messages:
 # --- 4. USER INPUT AND RESPONSE GENERATION ---
 
 # Accept user input using the modern chat input widget
-if user_prompt := st.chat_input("What's on your mind?"):
+if user_prompt := st.chat_input("What can I help you with?"):
     # Add user message to session state and display it
     st.session_state.messages.append({"role": "user", "content": user_prompt})
     with st.chat_message("user"):
@@ -87,8 +84,10 @@ if user_prompt := st.chat_input("What's on your mind?"):
                 response = chain.invoke({"history": history, "user_input": user_prompt})
                 st.markdown(response)
 
-            except Exception as e:
-                st.error(f"An error occurred while generating the response: {e}")
+                # THE FIX IS HERE: Add AI response to session state ONLY if successful
+                st.session_state.messages.append({"role": "assistant", "content": response})
 
-    # Add AI response to session state
-    st.session_state.messages.append({"role": "assistant", "content": response})
+            except Exception as e:
+                # Display a user-friendly error message in the chat
+                error_message = f"Sorry, I ran into a problem: {e}"
+                st.error(error_message)
