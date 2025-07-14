@@ -22,22 +22,17 @@ if not hf_token:
 
 # --- 2. SESSION STATE INITIALIZATION ---
 
-# Initialize session state variables
 if 'entered_prompt' not in st.session_state:
-    st.session_state['entered_prompt'] = ""  # Store the latest user input
-
+    st.session_state['entered_prompt'] = ""
 if 'generated' not in st.session_state:
-    st.session_state['generated'] = []  # Store AI generated responses
-
+    st.session_state['generated'] = []
 if 'past' not in st.session_state:
-    st.session_state['past'] = []  # Store past user inputs
-
+    st.session_state['past'] = []
 if 'conversation_history' not in st.session_state:
-    st.session_state['conversation_history'] = ""  # Store the entire conversation history
+    st.session_state['conversation_history'] = ""
 
 # --- 3. MODEL AND CHAIN SETUP ---
 
-# Prompt template (the 'system' part acts as a base instruction)
 prompt = ChatPromptTemplate.from_messages(
     [
         ("system", "You are a helpful AI assistant named AI Mentor. Be polite and concise in your responses."),
@@ -45,7 +40,6 @@ prompt = ChatPromptTemplate.from_messages(
     ]
 )
 
-# Initialize the HuggingFaceEndpoint
 try:
     llm = HuggingFaceEndpoint(
         repo_id="google/gemma-1.1-7b-it",
@@ -62,39 +56,47 @@ except Exception as e:
 
 # --- 4. FUNCTIONS ---
 
-# Define function to submit user input
 def submit():
     st.session_state.entered_prompt = st.session_state.prompt_input
     st.session_state.prompt_input = ""
 
 def generate_response(user_query):
     """
-    Generate a response using the Hugging Face model.
+    Generate a response using the Hugging Face model with robust error handling.
     """
-    # Use the conversation history to maintain context
-    complete_prompt = st.session_state.conversation_history + f"\nUser: {user_query}\nAI:"
-    response = chain.invoke({"question": complete_prompt}).strip()
+    try:
+        complete_prompt = st.session_state.conversation_history + f"\nUser: {user_query}\nAI:"
+        
+        # This is where the StopIteration error happens
+        response = chain.invoke({"question": complete_prompt})
 
-    # Update conversation history with the new exchange
-    st.session_state.conversation_history += f"\nUser: {user_query}\nAI: {response}"
+        # Check for an empty response, which can also cause issues
+        if not response or not response.strip():
+            return "I'm sorry, I received an empty response from the model. Please try again."
 
-    return response
+        response = response.strip()
+        st.session_state.conversation_history += f"\nUser: {user_query}\nAI: {response}"
+        return response
+
+    except Exception as e:
+        # Catch the StopIteration and other errors and provide a helpful message
+        error_message = f"An API error occurred: {e}. This might be due to an invalid API token or a model cold start. Please check your token and try again in a moment."
+        st.error(error_message)
+        return "Sorry, I couldn't get a response. Please see the error above."
 
 # --- 5. APP LAYOUT AND LOGIC ---
 
-# Create a text input for the user
 st.text_input('YOU: ', key='prompt_input', on_change=submit)
 
 if st.session_state.entered_prompt:
     user_query = st.session_state.entered_prompt
     st.session_state.past.append(user_query)
 
-    # Generate response
     with st.spinner("Thinking..."):
         output = generate_response(user_query)
         st.session_state.generated.append(output)
 
-# Display the chat history in reverse order
+# This is your original display loop, it was not removed.
 if st.session_state['generated']:
     for i in range(len(st.session_state['generated']) - 1, -1, -1):
         message(st.session_state["generated"][i], key=str(i))
