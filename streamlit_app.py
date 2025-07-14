@@ -10,8 +10,7 @@ import os
 st.set_page_config(page_title="AI Chatbot", page_icon="🤖")
 st.title('AI Assistant')
 
-# Check for the Hugging Face API token in Streamlit's secrets management
-# This is the standard way for apps deployed on Hugging Face Spaces
+# Check for the Hugging Face API token in the Space's secrets
 hf_token = os.getenv("HUGGINGFACEHUB_API_TOKEN")
 
 if not hf_token:
@@ -33,10 +32,10 @@ AI:"""
 prompt_template = ChatPromptTemplate.from_template(template)
 
 try:
-    # Connect to a reliable hosted model from Hugging Face
+    # Connect to a Hugging Face hosted model using its repository ID
     llm = HuggingFaceEndpoint(
         repo_id="mistralai/Mistral-7B-Instruct-v0.1",
-        huggingfacehub_api_token=hf_token, # Explicitly pass the token
+        huggingfacehub_api_token=hf_token, # Pass the token
         temperature=0.7,
         max_new_tokens=512,
     )
@@ -52,11 +51,11 @@ except Exception as e:
 
 # --- 3. CHAT HISTORY MANAGEMENT ---
 
-# Initialize chat history in session state if it doesn't exist
+# Initialize chat history in session state
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# Display prior messages on rerun
+# Display prior messages
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
@@ -64,7 +63,7 @@ for message in st.session_state.messages:
 
 # --- 4. USER INPUT AND RESPONSE GENERATION ---
 
-# Accept user input using the modern chat input widget
+# Accept user input
 if user_prompt := st.chat_input("What can I help you with?"):
     # Add user message to session state and display it
     st.session_state.messages.append({"role": "user", "content": user_prompt})
@@ -75,19 +74,17 @@ if user_prompt := st.chat_input("What can I help you with?"):
     with st.chat_message("assistant"):
         with st.spinner("Thinking..."):
             try:
-                # Build the history string from session state
+                # Build the history string
                 history = "\n".join(
                     [f"{msg['role']}: {msg['content']}" for msg in st.session_state.messages]
                 )
 
-                # Invoke the chain to get a response
+                # Get the AI response
                 response = chain.invoke({"history": history, "user_input": user_prompt})
                 st.markdown(response)
 
-                # THE FIX IS HERE: Add AI response to session state ONLY if successful
+                # Add AI response to session state
                 st.session_state.messages.append({"role": "assistant", "content": response})
 
             except Exception as e:
-                # Display a user-friendly error message in the chat
-                error_message = f"Sorry, I ran into a problem: {e}"
-                st.error(error_message)
+                st.error(f"An error occurred: {e}")
